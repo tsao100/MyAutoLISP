@@ -189,3 +189,89 @@
 
 (defun c:cbar()
 (create-block-reference))
+
+;;; InsertBlockWithAttributes (Gilles Chanteau)
+;;; Creates a new block reference with attributes using entmake
+;;;
+;;; Arguments
+;;; blockName : name of the block definition
+;;; inspt     : insertion point
+;;; layer     : insertion layer
+;;; xScale    : X scale
+;;; yScale    : Y scale
+;;; rotation  : rotation (radians)
+;;; attribs   : list of dotted pairs containing the attribute values (TAG . Value)
+(defun InsertBlockWithAttributes (blockName insPt layer xScale yScale rotation attribs / mxv block ent attDefs insert tag elst)
+ 
+  (defun mxv (m v)
+    (mapcar (function (lambda (r) (apply '+ (mapcar '* r v))))
+            m
+    )
+  )
+  
+  (if (setq block (tblsearch "block" blockName))
+    (progn
+      (setq ent   (cdr (assoc -2 block))
+            xform (list (list (* xScale (cos rotation)) (* xScale (- (sin rotation))) 0.)
+                        (list (* yScale (sin rotation)) (* yScale (cos rotation)) 0.)
+                        (list 0. 0. 1.)
+                  )
+      )
+      (while ent
+        (if (= "ATTDEF" (cdr (assoc 0 (setq elst (entget ent)))))
+          (setq attDefs (cons (cons (cdr (assoc 2 elst)) elst) attDefs))
+        )
+        (setq ent (entnext ent))
+      )
+      (setq insert (entmakex
+                     (list
+                       (cons 0 "INSERT")
+                       (cons 8 layer)
+                       (cons 66 1)
+                       (cons 2 blockName)
+                       (cons 10 insPt)
+                       (cons 41 xScale)
+                       (cons 42 yScale)
+                       (cons 43 1.0)
+                       (cons 50 rotation)
+                     )
+                   )
+      )
+ 
+      (foreach att (reverse attDefs)
+        (setq tag  (car att)
+              elst (cdr att)
+        )
+        (entmakex
+          (list
+            (cons 0 "ATTRIB")
+            (cons 100 "AcDbEntity")
+            (assoc 8 elst)
+            (cons 100 "AcDbText")
+            (cons 10 (mapcar '+ inspt (mxv xform (cdr (assoc 10 elst)))))
+            (cons 40 (* yScale (cdr (assoc 40 elst))))
+            (cons 1
+                  (cond ((cdr (assoc tag attribs)))
+                        (T (cdr (assoc 1 elst)))
+                  )
+            )
+            (cons 50 rotation)
+            (cons 41 (/ xScale yscale))
+            (assoc 51 elst)
+            (assoc 7 elst)
+            (assoc 72 elst)
+            (cons 11 (mapcar '+ inspt (mxv xform (cdr (assoc 11 elst)))))
+            (cons 100 "AcDbAttribute")
+            (assoc 280 elst)
+            (cons 2 tag)
+            (assoc 70 elst)
+            (assoc 74 elst)
+            (assoc 280 (reverse elst))
+          )
+        )
+      )
+      (entmakex '((0 . "SEQEND")))
+      (entlast)
+    )
+  )
+)
