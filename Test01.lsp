@@ -341,3 +341,9 @@
     )
     (alert (strcat "The attributes for blockReference " (vla-get-Name blockRefObj) " are: " strAttributes))
 )
+
+(defun c:iba2()
+  (setq attdiaver (getvar "ATTDIA"))
+  (setvar "ATTDIA" 0)
+  (command "-insert" "2" pause '1 "" '0 "TS 0+456.000 DN")
+  (setvar "ATTDIA" attdiaver))
