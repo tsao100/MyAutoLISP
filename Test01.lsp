@@ -201,6 +201,9 @@
 ;;; yScale    : Y scale
 ;;; rotation  : rotation (radians)
 ;;; attribs   : list of dotted pairs containing the attribute values (TAG . Value)
+(defun c:iba()
+  (InsertBlockWithAttributes "2" '(499004.0 1.61698e+06 0.0) "0" '1 '1 pi '(("CHAINAGE" . "TS 0+456.000 UP"))))
+  
 (defun InsertBlockWithAttributes (blockName insPt layer xScale yScale rotation attribs / mxv block ent attDefs insert tag elst)
  
   (defun mxv (m v)
@@ -242,11 +245,12 @@
         (setq tag  (car att)
               elst (cdr att)
         )
-        (entmakex
+        (entmakex (setq bent
           (list
             (cons 0 "ATTRIB")
             (cons 100 "AcDbEntity")
             (assoc 8 elst)
+            (assoc 62 elst)
             (cons 100 "AcDbText")
             (cons 10 (mapcar '+ inspt (mxv xform (cdr (assoc 10 elst)))))
             (cons 40 (* yScale (cdr (assoc 40 elst))))
@@ -255,7 +259,7 @@
                         (T (cdr (assoc 1 elst)))
                   )
             )
-            (cons 50 rotation)
+            (assoc 50 elst)
             (cons 41 (/ xScale yscale))
             (assoc 51 elst)
             (assoc 7 elst)
@@ -267,11 +271,73 @@
             (assoc 70 elst)
             (assoc 74 elst)
             (assoc 280 (reverse elst))
-          )
+          ))
         )
       )
       (entmakex '((0 . "SEQEND")))
       (entlast)
     )
   )
+)
+
+(vl-load-com)
+(defun c:Example_GetAttributes()
+    ;; This example creates a block. It then adds attributes to that
+    ;; block. The block is then inserted into the drawing to create
+    ;; a block reference.
+    (setq acadObj (vlax-get-acad-object))
+    (setq doc (vla-get-ActiveDocument acadObj))
+    
+    ;; Create the block
+    (setq insertionPnt (vlax-3d-point 0 0 0))
+    (setq blockObj (vla-Add (vla-get-Blocks doc) insertionPnt "TESTBLOCK"))
+    
+    ;; Define the attribute definition
+    (setq attHeight 1
+          attMode acAttributeModeVerify
+          attPrompt "Attribute Prompt"
+          attTag "Attribute_Tag"
+          attValue "Attribute Value"
+          insertionPoint (vlax-3d-point 5 5 0))
+    
+    ;; Create the attribute definition object in model space
+    (setq attributeObj (vla-AddAttribute blockObj attHeight attMode attPrompt insertionPoint attTag attValue))
+    
+    ;; Insert the block
+    (setq insertionPnt (vlax-3d-point 2 2 0))
+    (setq modelSpace (vla-get-ModelSpace doc))
+    (setq blockRefObj (vla-InsertBlock modelSpace insertionPnt "TESTBLOCK" 1 1 1 0))
+    (vla-ZoomAll acadObj)
+    
+    ;; Get the attributes for the block reference
+    (setq varAttributes (vlax-variant-value (vla-GetAttributes blockRefObj)))
+    
+    ;; Move the attribute tags and values into a string to be displayed in a Msgbox
+    (setq strAttributes ""
+          I 0)
+    (while (>= (vlax-safearray-get-u-bound varAttributes 1) I)
+        (setq strAttributes (strcat strAttributes "\n  Tag: " (vla-get-TagString (vlax-safearray-get-element varAttributes I))
+                                                  "\n  Value: " (vla-get-TextString (vlax-safearray-get-element varAttributes I)) "\n"))
+        (setq I (1+ I))
+    )
+
+    (alert (strcat "The attributes for blockReference " (vla-get-Name blockRefObj) " are: " strAttributes))
+    
+    ;; Change the value of the attribute
+    ;; Note: There is no SetAttributes. Once you have the variant array, you have the objects.
+    ;; Changing them changes the objects in the drawing.
+    (vla-put-TextString (vlax-safearray-get-element varAttributes 0) "NEW VALUE!")
+    
+    ;; Get the attributes
+    (setq newvarAttributes (vlax-variant-value (vla-GetAttributes blockRefObj)))
+    
+    ;; Again, display the tags and values
+    (setq strAttributes ""
+          I 0)
+    (while (>= (vlax-safearray-get-u-bound varAttributes 1) I)
+        (setq strAttributes (strcat strAttributes "\n  Tag: " (vla-get-TagString (vlax-safearray-get-element varAttributes I))
+                                                  "\n  Value: " (vla-get-TextString (vlax-safearray-get-element varAttributes I)) "\n"))
+        (setq I (1+ I))
+    )
+    (alert (strcat "The attributes for blockReference " (vla-get-Name blockRefObj) " are: " strAttributes))
 )
